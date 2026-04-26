@@ -27,6 +27,14 @@ INSERT INTO rooms (room_code, building, capacity, status) VALUES
 ('56.3.2', 'Building 56', 25, 'available'),
 ('14.12.34', 'Building 14', 60, 'in_use');
 
+INSERT INTO sensor_readings (room_id, temperature, humidity, pressure) VALUES
+(1, 22.5, 55.3, 1013.2),
+(1, 22.8, 54.9, 1013.0),
+(2, 23.1, 60.1, 1012.8),
+(2, 23.0, 59.8, 1012.9),
+(4, 21.9, 58.2, 1013.5),
+(4, 22.1, 57.9, 1013.4);
+
 -- ─────────────────────────────────────────
 -- BOOKINGS (historical + upcoming)
 -- ─────────────────────────────────────────

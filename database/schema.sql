@@ -31,6 +31,20 @@ CREATE TABLE IF NOT EXISTS rooms (
 );
 
 -- ─────────────────────────────────────────
+-- SENSOR READINGS
+-- recorded every 10 seconds by each Room Pi
+-- ─────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS sensor_readings (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    room_id      INT NOT NULL,
+    temperature  DECIMAL(5,2),
+    humidity     DECIMAL(5,2),
+    pressure     DECIMAL(7,2),
+    recorded_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES rooms(id)
+);
+
+-- ─────────────────────────────────────────
 -- BOOKINGS
 -- ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS bookings (
