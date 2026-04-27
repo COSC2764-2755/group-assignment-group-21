@@ -14,7 +14,7 @@ INSERT INTO users (university_id, full_name, email, password_hash, role) VALUES
 ('ADMIN',  'System Admin',    'admin@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'admin'),
 ('S001',      'Alice Johnson',   'alice@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'user'),
 ('T001',      'Dr. James Lee',   'james@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'user'),
-('SEC001',    'Mike Security',   'mike@uni.edu.au',     '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'security'),
+('SEC001',    'Mike Security',   'mike@uni.edu.au',     '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'security');
 
 -- ─────────────────────────────────────────
 -- ROOMS
@@ -41,12 +41,12 @@ INSERT INTO sensor_readings (room_id, temperature, humidity, pressure) VALUES
 INSERT INTO bookings (user_id, room_id, date, start_time, end_time, status) VALUES
 (2, 1, '2026-05-01', '09:00:00', '11:00:00', 'completed'),
 (3, 2, '2026-05-02', '13:00:00', '15:00:00', 'completed'),
-(4, 4, '2026-05-03', '10:00:00', '12:00:00', 'cancelled'),
-(5, 1, '2026-05-05', '14:00:00', '16:00:00', 'completed'),
+(2, 4, '2026-05-03', '10:00:00', '12:00:00', 'cancelled'),
+(3, 1, '2026-05-05', '14:00:00', '16:00:00', 'completed'),
 (2, 5, '2026-05-10', '09:00:00', '10:00:00', 'completed'),
 (3, 1, CURDATE(),    '10:00:00', '12:00:00', 'active'),
-(4, 2, CURDATE(),    '13:00:00', '15:00:00', 'active'),
-(5, 4, CURDATE(),    '16:00:00', '18:00:00', 'active');
+(3, 2, CURDATE(),    '13:00:00', '15:00:00', 'active'),
+(2, 4, CURDATE(),    '16:00:00', '18:00:00', 'active');
 
 -- ─────────────────────────────────────────
 -- TOKENS (for active bookings)
@@ -61,14 +61,14 @@ INSERT INTO tokens (booking_id, token, used) VALUES
 -- ─────────────────────────────────────────
 INSERT INTO fault_reports (room_id, reported_by, description, status) VALUES
 (3, 2, 'Projector not working and lights flickering', 'confirmed'),
-(6, 5, 'Air conditioning making loud noise',          'pending');
+(6, 3, 'Air conditioning making loud noise',          'pending');
 
 -- ─────────────────────────────────────────
 -- ROOM STATUS LOG
 -- ─────────────────────────────────────────
 INSERT INTO room_status_log (room_id, changed_by, old_status, new_status, reason) VALUES
 (3, 1, 'available',  'maintenance', 'Scheduled maintenance'),
-(6, 6, 'available',  'in_use',      'Booking check-in');
+(6, 4, 'available',  'in_use',      'Booking check-in');
 
 -- ─────────────────────────────────────────
 -- ACTION LOGS
@@ -76,7 +76,7 @@ INSERT INTO room_status_log (room_id, changed_by, old_status, new_status, reason
 INSERT INTO action_logs (user_id, action, detail) VALUES
 (2, 'login',        'User logged in'),
 (2, 'book_room',    'Booked room 80.7.12 on 2026-05-01'),
-(3, 'book_room',    'Booked room 80.7.6 on 2026-05-02'),
-(4, 'cancel',       'Cancelled booking for 12.10.33'),
-(1, 'status_change','Changed 10.7.5 to maintenance'),
-(6, 'status_change','Changed 56.2.5 to in_use');
+(3, 'book_room',    'Booked room 10.5.25 on 2026-05-02'),
+(2, 'cancel',       'Cancelled booking for 80.6.5'),
+(4, 'status_change','Changed 80.7.12 to maintenance'),
+(4, 'status_change','Changed 14.12.34 to in_use');
