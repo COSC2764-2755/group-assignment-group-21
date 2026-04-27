@@ -5,9 +5,9 @@ from mysql.connector import Error
 def get_connection():
     try:
         return mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="",
+            host="192.168.1.145",
+            user="piot_user",
+            password="piot_password",
             database="piot_db"
         )
     except Error as error:
