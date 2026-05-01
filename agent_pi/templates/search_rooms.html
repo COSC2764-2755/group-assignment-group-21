@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Rooms</title>
+</head>
+<body>
+
+    <h1>Search Available Rooms</h1>
+
+    <form method="POST">
+        <label>Date:</label><br>
+        <input type="date" name="date" required><br><br>
+
+        <label>Start Time:</label><br>
+        <input type="time" name="start_time" required><br><br>
+
+        <label>End Time:</label><br>
+        <input type="time" name="end_time" required><br><br>
+
+        <button type="submit">Search</button>
+    </form>
+
+    <hr>
+
+    <h2>Available Rooms</h2>
+
+   {% for room in rooms %}
+    <p>
+        Room: {{ room.room_code if room.room_code else room['room_code'] }}
+        |
+        Building: {{ room.building if room.building else room['building'] }}
+        |
+        Capacity: {{ room.capacity if room.capacity else room['capacity'] }}
+        |
+        Status: {{ room.status if room.status else room['status'] }}
+
+        <a href="/book_room/{{ room.id if room.id else room['id'] }}">
+            <button>Book Room</button>
+        </a>
+    </p>
+    {% endfor %}
+
+</body>
+</html>

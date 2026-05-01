@@ -39,11 +39,8 @@
 #     print("\n── update room status ──")
 #     print(update_room_status(1, "maintenance", 1))
 
-
-
 from flask import Flask, render_template, request, redirect, session
-
-from socket_client import login, register, search_rooms, get_bookings
+from socket_client import login, register, search_rooms, get_bookings, book_room
 
 app = Flask(__name__)
 app.secret_key = "secret_key_here"
@@ -112,6 +109,32 @@ def dashboard():
     )
 
 
+# SEARCH ROOMS PAGE
+@app.route('/search_rooms', methods=['GET', 'POST'])
+def search_rooms_page():
+    if "user_id" not in session:
+        return redirect('/login')
+
+    rooms = []
+
+    if request.method == 'POST':
+        date = request.form['date']
+        start_time = request.form['start_time']
+        end_time = request.form['end_time']
+
+        response = search_rooms(date, start_time, end_time)
+
+        print(response)
+
+        if response["status"] == "ok":
+            rooms = response["rooms"]
+
+    return render_template(
+        "search_rooms.html",
+        rooms=rooms
+    )
+
+
 # BOOKINGS PAGE
 @app.route('/bookings')
 def bookings():
@@ -134,6 +157,29 @@ def logout():
     session.clear()
     return redirect('/login')
 
+# BOOK ROOM
+@app.route('/book_room/<int:room_id>')
+def book_room_page(room_id):
+    if "user_id" not in session:
+        return redirect('/login')
+
+    response = book_room(
+        session["user_id"],
+        room_id,
+        "2026-05-10",
+        "10:00",
+        "12:00"
+    )
+
+    print(response)
+
+    if response["status"] == "ok":
+        token = response["token"]
+        return f"Room booked successfully! Your token is: {token}"
+
+    return "Booking Failed"
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)
+
