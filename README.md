@@ -31,6 +31,8 @@ This installs sense-hat on top of the common dependencies.
 
 ### Running the project
 
+Make sure you have locally created .env file.
+
 Master Pi:
    cd master_pi
    python app.py
@@ -43,7 +45,7 @@ Room Pi:
    cd room_pi
    python app.py
 
-### Every time you return to work
+### Every time you run your code(important!!)
    source venv/bin/activate
 
 ### Adding a new package
