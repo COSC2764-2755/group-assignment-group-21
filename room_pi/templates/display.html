@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="refresh" content="30" />
+  <title>Room Display</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1.2rem 2rem;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+    }
+
+    header h1 { font-size: 1.6rem; font-weight: 700; }
+    header .clock { font-size: 1.1rem; color: #8b949e; }
+
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 1rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .badge-available   { background: #1a4731; color: #3fb950; border: 1px solid #3fb950; }
+    .badge-in_use      { background: #3d1f00; color: #f0883e; border: 1px solid #f0883e; }
+    .badge-maintenance { background: #3b2300; color: #e3b341; border: 1px solid #e3b341; }
+    .badge-fault       { background: #3d0a0a; color: #f85149; border: 1px solid #f85149; }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 1.5rem;
+      padding: 1.5rem 2rem;
+    }
+
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #8b949e;
+      margin-bottom: 1rem;
+    }
+
+    /* Room status card spans full width */
+    .status-card {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .status-card .room-name { font-size: 2rem; font-weight: 700; }
+    .status-card .status-right { text-align: right; }
+    .status-card .status-label { font-size: 0.8rem; color: #8b949e; margin-bottom: 0.4rem; }
+
+    /* Sensor card */
+    .sensor-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-top: 0.5rem;
+    }
+
+    .sensor-item { text-align: center; }
+    .sensor-item .value { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+    .sensor-item .unit  { font-size: 0.8rem; color: #8b949e; }
+    .sensor-item .label { font-size: 0.75rem; color: #8b949e; margin-top: 0.2rem; }
+
+    /* Bookings card */
+    .bookings-card { overflow: hidden; }
+
+    .booking-list { list-style: none; }
+
+    .booking-item {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 0.75rem 0;
+      border-bottom: 1px solid #21262d;
+    }
+
+    .booking-item:last-child { border-bottom: none; }
+
+    .booking-time {
+      min-width: 110px;
+      font-size: 0.85rem;
+      color: #8b949e;
+      white-space: nowrap;
+    }
+
+    .booking-info .user  { font-weight: 600; font-size: 0.95rem; }
+    .booking-info .desc  { font-size: 0.8rem; color: #8b949e; margin-top: 0.15rem; }
+
+    .booking-active .booking-time { color: #3fb950; }
+    .booking-active .user         { color: #3fb950; }
+
+    .no-bookings { color: #8b949e; font-size: 0.9rem; padding: 1rem 0; }
+
+    footer {
+      text-align: center;
+      padding: 0.75rem;
+      font-size: 0.75rem;
+      color: #484f58;
+      border-top: 1px solid #21262d;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Group Iot Room Display</h1>
+  <span class="clock" id="clock">--:--:--</span>
+</header>
+
+<main>
+  <!-- Status Card -->
+  <div class="card status-card">
+    <div>
+      <div class="room-name">INSERT ROOM name</div>
+      <div style="color:#8b949e; font-size:0.9rem; margin-top:0.3rem;">
+        INSERT ROOM LOCATION
+      </div>
+    </div>
+    <div class="status-right">
+      <div class="status-label">Current Status</div>
+      INSERT ROOM STATUS
+      <span class="badge badge-{{ s }}">INSERT ROOM STATUS CONDITION</span>
+    </div>
+  </div>
+
+  <!-- Sensor Card -->
+  <div class="card">
+    <h2>Environmental Readings</h2>
+    <div class="sensor-grid">
+      <div class="sensor-item">
+        <div class="value">INSERT SENSOR TEMP</div>
+        <div class="unit">°C</div>
+        <div class="label">Temperature</div>
+      </div>
+      <div class="sensor-item">
+        <div class="value">INSERT SENSOR Humidity</div>
+        <div class="unit">%</div>
+        <div class="label">Humidity</div>
+      </div>
+      <div class="sensor-item">
+        <div class="value">INSERT SENSOR PRESSURE</div>
+        <div class="unit">hPa</div>
+        <div class="label">Pressure</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bookings Card -->
+  <div class="card bookings-card">
+    <h2>Today's Schedule</h2>
+    {% if bookings %}
+      <ul class="booking-list">
+        {% for b in bookings %}
+          <li class="booking-item {% if b.active %}booking-active{% endif %}">
+            <span class="booking-time">{{ b.start_time }} – {{ b.end_time }}</span>
+            <div class="booking-info">
+              <div class="user">{{ b.user_name }}</div>
+              {% if b.description %}
+                <div class="desc">{{ b.description }}</div>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="no-bookings">No bookings scheduled for today.</p>
+    {% endif %}
+  </div>
+</main>
+
+<footer>
+  Auto-refreshes every 30 seconds &nbsp;|&nbsp; Room ID: {{ room_id }}
+</footer>
+
+<script>
+  function tick() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString();
+  }
+  tick();
+  setInterval(tick, 1000);
+</script>
+
+</body>
+</html>
