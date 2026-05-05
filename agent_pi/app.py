@@ -179,6 +179,25 @@ def book_room_page(room_id):
 
     return "Booking Failed"
 
+# Verify Token
+
+@app.route('/verify_token', methods=['GET', 'POST'])
+def verify_token_page():
+    if request.method == 'POST':
+        token = request.form['token']
+
+        response = verify_token(
+            room_id=1,
+            token=token
+        )
+
+        if response["status"] == "ok":
+            return "Access Granted"
+
+        return "Access Denied"
+
+    return render_template("verify_token.html")
+
 
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)

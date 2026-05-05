@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>My Bookings</title>
+</head>
+<body>
+
+    <h1>My Bookings</h1>
+
+    {% if bookings %}
+        {% for booking in bookings %}
+            <p>
+                Room: {{ booking.room_code if booking.room_code else booking['room_code'] }}
+                |
+                Date: {{ booking.date if booking.date else booking['date'] }}
+                |
+                Start: {{ booking.start_time if booking.start_time else booking['start_time'] }}
+                |
+                End: {{ booking.end_time if booking.end_time else booking['end_time'] }}
+                |
+                Status: {{ booking.status if booking.status else booking['status'] }}
+                |
+                Token: {{ booking.token if booking.token else booking['token'] }}
+            </p>
+            <hr>
+        {% endfor %}
+    {% else %}
+        <p>No bookings found.</p>
+    {% endif %}
+
+    <br>
+    <a href="/dashboard">Back to Dashboard</a>
+
+</body>
+</html>
