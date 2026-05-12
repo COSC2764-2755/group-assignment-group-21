@@ -92,9 +92,11 @@ def register_page():
         if response["status"] == "ok":
             return redirect('/login')
 
-        return "Registration Failed"
+        # Pass error message back to the form
+        return render_template("register.html", error=response.get("message", "Registration failed."))
 
     return render_template("register.html")
+
 
 
 # DASHBOARD

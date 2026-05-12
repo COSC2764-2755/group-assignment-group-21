@@ -1,7 +1,10 @@
 import zmq
 import os
+import hashlib
+import re
 from dotenv import load_dotenv
 from mqtt_publisher import publish_message
+from db import get_connection
 
 load_dotenv()
 
@@ -38,6 +41,35 @@ def route(action: str, data: dict) -> dict:
 
 
 # --------------------------------------------------
+# HELPERS
+# --------------------------------------------------
+
+def hash_password(password: str) -> str:
+    """SHA-256 hash of the password."""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def is_valid_email(email: str) -> bool:
+    """Basic email format check."""
+    pattern = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
+    return re.match(pattern, email) is not None
+
+
+def log_action(conn, user_id, action, detail=""):
+    """Insert a row into action_logs."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO action_logs (user_id, action, detail) VALUES (%s, %s, %s)",
+            (user_id, action, detail)
+        )
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"[LOG ERROR] {e}")
+
+
+# --------------------------------------------------
 # HANDLERS
 # --------------------------------------------------
 
@@ -58,10 +90,91 @@ def handle_login(data):
 
 
 def handle_register(data):
-    return {
-        "status": "ok",
-        "message": "Registered successfully"
-    }
+    """
+    Validates input, checks for duplicates, hashes password,
+    and inserts a new user into the database.
+
+    Expected data keys:
+        university_id, full_name, email, password
+    """
+    university_id = data.get("university_id", "").strip()
+    full_name = data.get("full_name", "").strip()
+    email = data.get("email", "").strip().lower()
+    password = data.get("password", "")
+
+    # ── Input validation ──────────────────────────────
+    if not all([university_id, full_name, email, password]):
+        return {
+            "status": "error",
+            "message": "All fields are required."
+        }
+
+    if not is_valid_email(email):
+        return {
+            "status": "error",
+            "message": "Invalid email address format."
+        }
+
+    if len(password) < 8:
+        return {
+            "status": "error",
+            "message": "Password must be at least 8 characters."
+        }
+
+    # ── Database operations ───────────────────────────
+    conn = get_connection()
+    if conn is None:
+        return {
+            "status": "error",
+            "message": "Database connection failed."
+        }
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Check for duplicate university_id or email
+        cursor.execute(
+            "SELECT id FROM users WHERE university_id = %s OR email = %s",
+            (university_id, email)
+        )
+        existing = cursor.fetchone()
+
+        if existing:
+            return {
+                "status": "error",
+                "message": "University ID or email is already registered."
+            }
+
+        # Insert the new user
+        password_hash = hash_password(password)
+        cursor.execute(
+            """INSERT INTO users (university_id, full_name, email, password_hash, role)
+               VALUES (%s, %s, %s, %s, 'user')""",
+            (university_id, full_name, email, password_hash)
+        )
+        conn.commit()
+        new_user_id = cursor.lastrowid
+        cursor.close()
+
+        # Log the registration action
+        log_action(conn, new_user_id, "register", f"New user registered: {university_id}")
+
+        print(f"[REGISTER] New user registered: {university_id} ({email})")
+
+        return {
+            "status": "ok",
+            "message": "Registered successfully."
+        }
+
+    except Exception as e:
+        print(f"[REGISTER ERROR] {e}")
+        return {
+            "status": "error",
+            "message": "Registration failed due to a server error."
+        }
+
+    finally:
+        conn.close()
 
 
 def handle_search_rooms(data):
