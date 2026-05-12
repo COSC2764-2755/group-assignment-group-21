@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Report a Fault</title>
+</head>
+<body>
+
+    <h1>Report a Room Fault</h1>
+
+    {% if success %}
+        <p style="color: green;">{{ success }}</p>
+    {% endif %}
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    <form method="POST">
+        <label>Room ID:</label><br>
+        <input type="number" name="room_id" required><br><br>
+
+        <label>Description of fault:</label><br>
+        <textarea name="description" rows="4" cols="40" required></textarea><br><br>
+
+        <button type="submit">Submit Fault Report</button>
+    </form>
+
+    <br>
+    <a href="/dashboard">Back to Dashboard</a>
+
+</body>
+</html>

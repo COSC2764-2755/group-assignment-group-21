@@ -1,7 +1,8 @@
 from flask import Flask, render_template, request, redirect, session
 from socket_client import (
     login, register, search_rooms, get_bookings,
-    book_room, cancel_booking, checkin, checkout
+    book_room, cancel_booking, checkin, checkout,
+    report_fault
 )
 
 app = Flask(__name__)
@@ -61,13 +62,13 @@ def dashboard():
     return render_template("dashboard.html", full_name=session["full_name"])
 
 
-# SEARCH ROOMS PAGE
-@app.route('/search_rooms', methods=['GET', 'POST'])
-def search_rooms_page():
+# SEARCH ROOMS — /search
+@app.route('/search', methods=['GET', 'POST'])
+def search():
     if "user_id" not in session:
         return redirect('/login')
 
-    rooms = []
+    rooms      = []
     date       = ""
     start_time = ""
     end_time   = ""
@@ -77,7 +78,7 @@ def search_rooms_page():
         start_time = request.form['start_time']
         end_time   = request.form['end_time']
 
-        # Store search params in session so book_room can use them
+        # Store search params in session so /bookroom can use them
         session["search_date"]       = date
         session["search_start_time"] = start_time
         session["search_end_time"]   = end_time
@@ -87,7 +88,8 @@ def search_rooms_page():
         if response["status"] == "ok":
             rooms = response["rooms"]
         else:
-            return render_template("search_rooms.html", rooms=[], error=response.get("message"))
+            return render_template("search_rooms.html", rooms=[],
+                                   error=response.get("message"))
 
     return render_template(
         "search_rooms.html",
@@ -98,19 +100,18 @@ def search_rooms_page():
     )
 
 
-# BOOK ROOM
-@app.route('/book_room/<int:room_id>')
-def book_room_page(room_id):
+# BOOK ROOM — /bookroom/<room_id>
+@app.route('/bookroom/<int:room_id>')
+def bookroom(room_id):
     if "user_id" not in session:
         return redirect('/login')
 
-    # Pull the date/time that was searched — must have searched first
     date       = session.get("search_date")
     start_time = session.get("search_start_time")
     end_time   = session.get("search_end_time")
 
     if not all([date, start_time, end_time]):
-        return redirect('/search_rooms')
+        return redirect('/search')
 
     response = book_room(
         session["user_id"],
@@ -125,16 +126,17 @@ def book_room_page(room_id):
         return render_template("booking_confirmed.html", token=token, date=date,
                                start_time=start_time, end_time=end_time)
 
-    return render_template("search_rooms.html", rooms=[], error=response.get("message", "Booking failed."))
+    return render_template("search_rooms.html", rooms=[],
+                           error=response.get("message", "Booking failed."))
 
 
-# MY BOOKINGS PAGE
-@app.route('/bookings')
-def bookings_page():
+# MY BOOKINGS — /mybookings
+@app.route('/mybookings')
+def mybookings():
     if "user_id" not in session:
         return redirect('/login')
 
-    response = get_bookings(session["user_id"])
+    response      = get_bookings(session["user_id"])
     bookings_data = response.get("bookings", [])
 
     return render_template("bookings.html", bookings=bookings_data)
@@ -146,10 +148,8 @@ def cancel_booking_page(booking_id):
     if "user_id" not in session:
         return redirect('/login')
 
-    response = cancel_booking(booking_id, session["user_id"])
-
-    # Redirect back to bookings regardless, show error there if needed
-    return redirect('/bookings')
+    cancel_booking(booking_id, session["user_id"])
+    return redirect('/mybookings')
 
 
 # CHECK IN
@@ -161,9 +161,9 @@ def checkin_page(booking_id):
     response = checkin(booking_id, session["user_id"])
 
     if response["status"] == "ok":
-        return f"Checked in successfully for booking #{booking_id}. <a href='/bookings'>Back to bookings</a>"
+        return f"Checked in successfully for booking #{booking_id}. <a href='/mybookings'>Back to bookings</a>"
 
-    return f"Check-in failed: {response.get('message')}. <a href='/bookings'>Back</a>"
+    return f"Check-in failed: {response.get('message')}. <a href='/mybookings'>Back</a>"
 
 
 # CHECK OUT
@@ -175,9 +175,33 @@ def checkout_page(booking_id):
     response = checkout(booking_id, session["user_id"])
 
     if response["status"] == "ok":
-        return f"Checked out successfully. Room returned. <a href='/bookings'>Back to bookings</a>"
+        return f"Checked out successfully. Room returned. <a href='/mybookings'>Back to bookings</a>"
 
-    return f"Check-out failed: {response.get('message')}. <a href='/bookings'>Back</a>"
+    return f"Check-out failed: {response.get('message')}. <a href='/mybookings'>Back</a>"
+
+
+# REPORT FAULT — /fault
+@app.route('/fault', methods=['GET', 'POST'])
+def fault():
+    if "user_id" not in session:
+        return redirect('/login')
+
+    if request.method == 'POST':
+        room_id     = request.form['room_id']
+        description = request.form['description']
+
+        response = report_fault(
+            room_id=int(room_id),
+            user_id=session["user_id"],
+            description=description
+        )
+
+        if response["status"] == "ok":
+            return render_template("fault.html", success="Fault reported successfully.")
+
+        return render_template("fault.html", error=response.get("message", "Failed to report fault."))
+
+    return render_template("fault.html")
 
 
 # LOGOUT
