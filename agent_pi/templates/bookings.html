@@ -9,26 +9,35 @@
 
     {% if bookings %}
         {% for booking in bookings %}
-            <p>
-                Room: {{ booking.room_code if booking.room_code else booking['room_code'] }}
-                |
-                Date: {{ booking.date if booking.date else booking['date'] }}
-                |
-                Start: {{ booking.start_time if booking.start_time else booking['start_time'] }}
-                |
-                End: {{ booking.end_time if booking.end_time else booking['end_time'] }}
-                |
-                Status: {{ booking.status if booking.status else booking['status'] }}
-                |
-                Token: {{ booking.token if booking.token else booking['token'] }}
-            </p>
-            <hr>
+            <div style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+                <p>
+                    <strong>Room:</strong> {{ booking['room_code'] }} |
+                    <strong>Date:</strong> {{ booking['date'] }} |
+                    <strong>Time:</strong> {{ booking['start_time'] }} - {{ booking['end_time'] }} |
+                    <strong>Status:</strong> {{ booking['status'] }}
+                </p>
+                <p><strong>Token:</strong> {{ booking['token'] or 'N/A' }}</p>
+
+                {% if booking['status'] == 'active' %}
+                    <a href="/checkin/{{ booking['id'] }}">
+                        <button>Check In</button>
+                    </a>
+                    <a href="/checkout/{{ booking['id'] }}">
+                        <button>Check Out</button>
+                    </a>
+                    <a href="/cancel_booking/{{ booking['id'] }}"
+                       onclick="return confirm('Cancel this booking?')">
+                        <button style="color: red;">Cancel</button>
+                    </a>
+                {% endif %}
+            </div>
         {% endfor %}
     {% else %}
         <p>No bookings found.</p>
     {% endif %}
 
     <br>
+    <a href="/search_rooms">Book a Room</a> |
     <a href="/dashboard">Back to Dashboard</a>
 
 </body>

@@ -2,6 +2,7 @@ import zmq
 import os
 import hashlib
 import re
+import secrets
 from dotenv import load_dotenv
 from mqtt_publisher import publish_message
 from db import get_connection
@@ -13,29 +14,25 @@ PORT = os.getenv("MASTER_PI_PORT", "5050")
 
 def route(action: str, data: dict) -> dict:
     handlers = {
-        "ping": handle_ping,
-        "login": handle_login,
-        "register": handle_register,
-        "search_rooms": handle_search_rooms,
-        "book_room": handle_book_room,
-        "cancel_booking": handle_cancel_booking,
-        "checkin": handle_checkin,
-        "checkout": handle_checkout,
-        "validate_token": handle_validate_token,
-        "report_fault": handle_report_fault,
-        "update_status": handle_update_status,
-        "save_sensor": handle_save_sensor,
-        "get_room_info": handle_get_room_info,
-        "get_bookings": handle_get_bookings,
+        "ping":            handle_ping,
+        "login":           handle_login,
+        "register":        handle_register,
+        "search_rooms":    handle_search_rooms,
+        "book_room":       handle_book_room,
+        "cancel_booking":  handle_cancel_booking,
+        "checkin":         handle_checkin,
+        "checkout":        handle_checkout,
+        "validate_token":  handle_validate_token,
+        "report_fault":    handle_report_fault,
+        "update_status":   handle_update_status,
+        "save_sensor":     handle_save_sensor,
+        "get_room_info":   handle_get_room_info,
+        "get_bookings":    handle_get_bookings,
     }
 
     handler = handlers.get(action)
-
     if handler is None:
-        return {
-            "status": "error",
-            "message": f"Unknown action: {action}"
-        }
+        return {"status": "error", "message": f"Unknown action: {action}"}
 
     return handler(data)
 
@@ -45,18 +42,22 @@ def route(action: str, data: dict) -> dict:
 # --------------------------------------------------
 
 def hash_password(password: str) -> str:
-    """SHA-256 hash of the password."""
     return hashlib.sha256(password.encode()).hexdigest()
 
 
 def is_valid_email(email: str) -> bool:
-    """Basic email format check."""
-    pattern = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
-    return re.match(pattern, email) is not None
+    return re.match(r'^[\w\.-]+@[\w\.-]+\.\w{2,}$', email) is not None
+
+
+def timedelta_to_str(val) -> str:
+    """Convert MySQL TIME timedelta to HH:MM string."""
+    if val and hasattr(val, 'seconds'):
+        total = int(val.total_seconds())
+        return f"{total // 3600:02}:{(total % 3600) // 60:02}"
+    return str(val)
 
 
 def log_action(conn, user_id, action, detail=""):
-    """Insert a row into action_logs."""
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -74,274 +75,547 @@ def log_action(conn, user_id, action, detail=""):
 # --------------------------------------------------
 
 def handle_ping(data):
-    return {
-        "status": "ok",
-        "message": "pong"
-    }
+    return {"status": "ok", "message": "pong"}
 
 
 def handle_login(data):
-    return {
-        "status": "ok",
-        "user_id": 1,
-        "full_name": "Alice Johnson",
-        "role": "user"
-    }
+    university_id = data.get("university_id", "").strip()
+    password      = data.get("password", "")
+
+    if not university_id or not password:
+        return {"status": "error", "message": "University ID and password are required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT id, full_name, role FROM users WHERE university_id = %s AND password_hash = %s",
+            (university_id, hash_password(password))
+        )
+        user = cursor.fetchone()
+        cursor.close()
+
+        if not user:
+            return {"status": "error", "message": "Invalid university ID or password."}
+
+        log_action(conn, user["id"], "login", f"User logged in: {university_id}")
+
+        return {
+            "status": "ok",
+            "user_id":   user["id"],
+            "full_name": user["full_name"],
+            "role":      user["role"]
+        }
+
+    except Exception as e:
+        print(f"[LOGIN ERROR] {e}")
+        return {"status": "error", "message": "Login failed due to a server error."}
+    finally:
+        conn.close()
 
 
 def handle_register(data):
     """
     Validates input, checks for duplicates, hashes password,
     and inserts a new user into the database.
-
-    Expected data keys:
-        university_id, full_name, email, password
     """
     university_id = data.get("university_id", "").strip()
-    full_name = data.get("full_name", "").strip()
-    email = data.get("email", "").strip().lower()
-    password = data.get("password", "")
+    full_name     = data.get("full_name", "").strip()
+    email         = data.get("email", "").strip().lower()
+    password      = data.get("password", "")
 
-    # ── Input validation ──────────────────────────────
     if not all([university_id, full_name, email, password]):
-        return {
-            "status": "error",
-            "message": "All fields are required."
-        }
+        return {"status": "error", "message": "All fields are required."}
 
     if not is_valid_email(email):
-        return {
-            "status": "error",
-            "message": "Invalid email address format."
-        }
+        return {"status": "error", "message": "Invalid email address format."}
 
     if len(password) < 8:
-        return {
-            "status": "error",
-            "message": "Password must be at least 8 characters."
-        }
+        return {"status": "error", "message": "Password must be at least 8 characters."}
 
-    # ── Database operations ───────────────────────────
     conn = get_connection()
     if conn is None:
-        return {
-            "status": "error",
-            "message": "Database connection failed."
-        }
+        return {"status": "error", "message": "Database connection failed."}
 
     try:
         cursor = conn.cursor(dictionary=True)
-
-        # Check for duplicate university_id or email
         cursor.execute(
             "SELECT id FROM users WHERE university_id = %s OR email = %s",
             (university_id, email)
         )
-        existing = cursor.fetchone()
+        if cursor.fetchone():
+            return {"status": "error", "message": "University ID or email is already registered."}
 
-        if existing:
-            return {
-                "status": "error",
-                "message": "University ID or email is already registered."
-            }
-
-        # Insert the new user
-        password_hash = hash_password(password)
         cursor.execute(
             """INSERT INTO users (university_id, full_name, email, password_hash, role)
                VALUES (%s, %s, %s, %s, 'user')""",
-            (university_id, full_name, email, password_hash)
+            (university_id, full_name, email, hash_password(password))
         )
         conn.commit()
         new_user_id = cursor.lastrowid
         cursor.close()
 
-        # Log the registration action
         log_action(conn, new_user_id, "register", f"New user registered: {university_id}")
+        print(f"[REGISTER] {university_id} ({email})")
 
-        print(f"[REGISTER] New user registered: {university_id} ({email})")
-
-        return {
-            "status": "ok",
-            "message": "Registered successfully."
-        }
+        return {"status": "ok", "message": "Registered successfully."}
 
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
-        return {
-            "status": "error",
-            "message": "Registration failed due to a server error."
-        }
-
+        return {"status": "error", "message": "Registration failed due to a server error."}
     finally:
         conn.close()
 
 
 def handle_search_rooms(data):
-    return {
-        "status": "ok",
-        "rooms": [
-            {
-                "id": 1,
-                "room_code": "A201",
-                "building": "Building A",
-                "capacity": 30,
-                "status": "available"
-            },
-            {
-                "id": 2,
-                "room_code": "B101",
-                "building": "Building B",
-                "capacity": 40,
-                "status": "available"
-            }
-        ]
-    }
+    """
+    Returns rooms that are available and have no overlapping active booking
+    for the requested date and time slot.
+    """
+    date       = data.get("date", "").strip()
+    start_time = data.get("start_time", "").strip()
+    end_time   = data.get("end_time", "").strip()
+
+    if not all([date, start_time, end_time]):
+        return {"status": "error", "message": "Date, start time, and end time are required."}
+
+    if start_time >= end_time:
+        return {"status": "error", "message": "End time must be after start time."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Rooms that are available AND have no overlapping active booking
+        cursor.execute("""
+            SELECT r.id, r.room_code, r.building, r.capacity, r.status
+            FROM rooms r
+            WHERE r.status = 'available'
+              AND r.id NOT IN (
+                  SELECT b.room_id FROM bookings b
+                  WHERE b.date = %s
+                    AND b.status = 'active'
+                    AND NOT (b.end_time <= %s OR b.start_time >= %s)
+              )
+            ORDER BY r.room_code
+        """, (date, start_time, end_time))
+
+        rooms = cursor.fetchall()
+        cursor.close()
+
+        # MySQL TIME columns return as timedelta — convert to strings
+        for room in rooms:
+            for key, val in room.items():
+                if hasattr(val, 'seconds'):
+                    room[key] = timedelta_to_str(val)
+
+        return {"status": "ok", "rooms": rooms}
+
+    except Exception as e:
+        print(f"[SEARCH ROOMS ERROR] {e}")
+        return {"status": "error", "message": "Room search failed."}
+    finally:
+        conn.close()
 
 
 def handle_book_room(data):
-    return {
-        "status": "ok",
-        "booking_id": 1,
-        "token": "tok_a1b2c3d4e5f6"
-    }
+    """
+    Creates a booking and issues a one-time use token.
+    """
+    user_id    = data.get("user_id")
+    room_id    = data.get("room_id")
+    date       = data.get("date", "").strip()
+    start_time = data.get("start_time", "").strip()
+    end_time   = data.get("end_time", "").strip()
+
+    if not all([user_id, room_id, date, start_time, end_time]):
+        return {"status": "error", "message": "All booking fields are required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Re-check availability to prevent race conditions
+        cursor.execute("""
+            SELECT id FROM bookings
+            WHERE room_id = %s
+              AND date = %s
+              AND status = 'active'
+              AND NOT (end_time <= %s OR start_time >= %s)
+        """, (room_id, date, start_time, end_time))
+
+        if cursor.fetchone():
+            return {"status": "error", "message": "Room is no longer available for that time slot."}
+
+        # Insert the booking
+        cursor.execute("""
+            INSERT INTO bookings (user_id, room_id, date, start_time, end_time, status)
+            VALUES (%s, %s, %s, %s, %s, 'active')
+        """, (user_id, room_id, date, start_time, end_time))
+        conn.commit()
+        booking_id = cursor.lastrowid
+
+        # Generate a unique one-time token
+        token = "tok_" + secrets.token_hex(8)
+        cursor.execute(
+            "INSERT INTO tokens (booking_id, token, used) VALUES (%s, %s, FALSE)",
+            (booking_id, token)
+        )
+        conn.commit()
+        cursor.close()
+
+        log_action(conn, user_id, "book_room",
+                   f"Booked room {room_id} on {date} {start_time}-{end_time}, token: {token}")
+        print(f"[BOOK ROOM] user={user_id} room={room_id} date={date} token={token}")
+
+        return {"status": "ok", "booking_id": booking_id, "token": token}
+
+    except Exception as e:
+        print(f"[BOOK ROOM ERROR] {e}")
+        return {"status": "error", "message": "Booking failed due to a server error."}
+    finally:
+        conn.close()
 
 
 def handle_cancel_booking(data):
-    return {
-        "status": "ok",
-        "message": "Booking cancelled"
-    }
+    """
+    Cancels a booking — only the owner can cancel their own booking.
+    """
+    booking_id = data.get("booking_id")
+    user_id    = data.get("user_id")
+
+    if not all([booking_id, user_id]):
+        return {"status": "error", "message": "Booking ID and user ID are required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT id FROM bookings WHERE id = %s AND user_id = %s AND status = 'active'",
+            (booking_id, user_id)
+        )
+        if not cursor.fetchone():
+            return {"status": "error", "message": "Booking not found or already cancelled."}
+
+        cursor.execute(
+            "UPDATE bookings SET status = 'cancelled' WHERE id = %s",
+            (booking_id,)
+        )
+        conn.commit()
+        cursor.close()
+
+        log_action(conn, user_id, "cancel_booking", f"Cancelled booking {booking_id}")
+        print(f"[CANCEL] booking={booking_id} user={user_id}")
+
+        return {"status": "ok", "message": "Booking cancelled successfully."}
+
+    except Exception as e:
+        print(f"[CANCEL ERROR] {e}")
+        return {"status": "error", "message": "Cancellation failed due to a server error."}
+    finally:
+        conn.close()
 
 
 def handle_checkin(data):
-    publish_message(
-        "room/1/status",
-        "in_use"
-    )
+    """
+    User checks in — sets room status to in_use and logs the change.
+    """
+    booking_id = data.get("booking_id")
+    user_id    = data.get("user_id")
 
-    return {
-        "status": "ok",
-        "message": "Checked in successfully"
-    }
+    if not all([booking_id, user_id]):
+        return {"status": "error", "message": "Booking ID and user ID are required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT room_id FROM bookings WHERE id = %s AND user_id = %s AND status = 'active'",
+            (booking_id, user_id)
+        )
+        booking = cursor.fetchone()
+
+        if not booking:
+            return {"status": "error", "message": "Active booking not found."}
+
+        room_id = booking["room_id"]
+
+        cursor.execute("UPDATE rooms SET status = 'in_use' WHERE id = %s", (room_id,))
+        cursor.execute("""
+            INSERT INTO room_status_log (room_id, changed_by, old_status, new_status, reason)
+            VALUES (%s, %s, 'available', 'in_use', 'User checked in')
+        """, (room_id, user_id))
+        conn.commit()
+        cursor.close()
+
+        publish_message(f"room/{room_id}/status", "in_use")
+        log_action(conn, user_id, "checkin", f"Checked in room {room_id} booking {booking_id}")
+        print(f"[CHECKIN] booking={booking_id} room={room_id}")
+
+        return {"status": "ok", "message": "Checked in successfully."}
+
+    except Exception as e:
+        print(f"[CHECKIN ERROR] {e}")
+        return {"status": "error", "message": "Check-in failed due to a server error."}
+    finally:
+        conn.close()
 
 
 def handle_checkout(data):
-    publish_message(
-        "room/1/status",
-        "available"
-    )
+    """
+    User checks out — sets room back to available, marks booking completed.
+    """
+    booking_id = data.get("booking_id")
+    user_id    = data.get("user_id")
 
-    return {
-        "status": "ok",
-        "message": "Checked out successfully"
-    }
+    if not all([booking_id, user_id]):
+        return {"status": "error", "message": "Booking ID and user ID are required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT room_id FROM bookings WHERE id = %s AND user_id = %s AND status = 'active'",
+            (booking_id, user_id)
+        )
+        booking = cursor.fetchone()
+
+        if not booking:
+            return {"status": "error", "message": "Active booking not found."}
+
+        room_id = booking["room_id"]
+
+        cursor.execute("UPDATE bookings SET status = 'completed' WHERE id = %s", (booking_id,))
+        cursor.execute("UPDATE rooms SET status = 'available' WHERE id = %s", (room_id,))
+        cursor.execute("""
+            INSERT INTO room_status_log (room_id, changed_by, old_status, new_status, reason)
+            VALUES (%s, %s, 'in_use', 'available', 'User checked out')
+        """, (room_id, user_id))
+        conn.commit()
+        cursor.close()
+
+        publish_message(f"room/{room_id}/status", "available")
+        log_action(conn, user_id, "checkout", f"Checked out room {room_id} booking {booking_id}")
+        print(f"[CHECKOUT] booking={booking_id} room={room_id}")
+
+        return {"status": "ok", "message": "Checked out successfully."}
+
+    except Exception as e:
+        print(f"[CHECKOUT ERROR] {e}")
+        return {"status": "error", "message": "Check-out failed due to a server error."}
+    finally:
+        conn.close()
 
 
 def handle_validate_token(data):
-    token = data.get("token")
+    """
+    Room Pi calls this to validate a user's one-time token on arrival.
+    Marks the token as used if valid.
+    """
+    token   = data.get("token", "").strip()
     room_id = data.get("room_id")
 
-    # Later teammate can replace this with DB validation
-    if token == "tok_a1b2c3d4e5f6":
+    if not token or not room_id:
+        return {"status": "error", "message": "Token and room ID are required."}
 
-        publish_message(
-            f"room/{room_id}/status",
-            "in_use"
-        )
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT t.id AS token_id, t.used,
+                   b.id AS booking_id, b.room_id, b.end_time, b.date, b.user_id,
+                   u.full_name
+            FROM tokens t
+            JOIN bookings b ON t.booking_id = b.id
+            JOIN users u    ON b.user_id = u.id
+            WHERE t.token = %s
+              AND b.room_id = %s
+              AND b.status = 'active'
+        """, (token, room_id))
+
+        result = cursor.fetchone()
+
+        if not result:
+            return {"status": "failed", "message": "Invalid token or wrong room."}
+
+        if result["used"]:
+            return {"status": "failed", "message": "Token has already been used."}
+
+        # Mark token as used
+        cursor.execute("UPDATE tokens SET used = TRUE WHERE id = %s", (result["token_id"],))
+        conn.commit()
+        cursor.close()
+
+        end_time = timedelta_to_str(result["end_time"])
+
+        publish_message(f"room/{room_id}/status", "in_use")
+        log_action(conn, result["user_id"], "validate_token",
+                   f"Token validated room {room_id} booking {result['booking_id']}")
+        print(f"[TOKEN] Valid - room={room_id} user={result['full_name']}")
 
         return {
-            "status": "ok",
-            "user": "Alice Johnson",
-            "booking_id": 1,
-            "end_time": "12:00",
-            "message": "Access granted"
+            "status":     "ok",
+            "message":    "Access granted.",
+            "user":       result["full_name"],
+            "booking_id": result["booking_id"],
+            "end_time":   end_time
         }
 
-    return {
-        "status": "failed",
-        "message": "Invalid token"
-    }
+    except Exception as e:
+        print(f"[TOKEN ERROR] {e}")
+        return {"status": "error", "message": "Token validation failed."}
+    finally:
+        conn.close()
+
+
+def handle_get_bookings(data):
+    """
+    Returns all bookings for a user with room details and token.
+    """
+    user_id = data.get("user_id")
+
+    if not user_id:
+        return {"status": "error", "message": "User ID is required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        cursor.execute("""
+            SELECT b.id, r.room_code, b.date, b.start_time, b.end_time,
+                   b.status, t.token
+            FROM bookings b
+            JOIN rooms r ON b.room_id = r.id
+            LEFT JOIN tokens t ON t.booking_id = b.id
+            WHERE b.user_id = %s
+            ORDER BY b.date DESC, b.start_time DESC
+        """, (user_id,))
+
+        bookings = cursor.fetchall()
+        cursor.close()
+
+        # Convert timedelta and date fields to strings
+        for booking in bookings:
+            for key in ("start_time", "end_time"):
+                booking[key] = timedelta_to_str(booking.get(key))
+            if booking.get("date"):
+                booking["date"] = str(booking["date"])
+
+        return {"status": "ok", "bookings": bookings}
+
+    except Exception as e:
+        print(f"[GET BOOKINGS ERROR] {e}")
+        return {"status": "error", "message": "Failed to retrieve bookings."}
+    finally:
+        conn.close()
 
 
 def handle_report_fault(data):
-    room_id = data.get("room_id")
+    room_id     = data.get("room_id")
+    user_id     = data.get("user_id")
+    description = data.get("description", "")
 
-    publish_message(
-        f"room/{room_id}/status",
-        "fault"
-    )
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
 
-    publish_message(
-        "security/alerts",
-        f"Room {room_id} entered FAULT status"
-    )
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO fault_reports (room_id, reported_by, description, status)
+            VALUES (%s, %s, %s, 'pending')
+        """, (room_id, user_id, description))
+        conn.commit()
+        cursor.close()
 
-    return {
-        "status": "ok",
-        "message": "Fault reported successfully"
-    }
+        publish_message(f"room/{room_id}/status", "fault")
+        publish_message("security/alerts", f"Room {room_id} FAULT: {description}")
+        log_action(conn, user_id, "report_fault", f"Room {room_id}: {description}")
+
+        return {"status": "ok", "message": "Fault reported successfully."}
+
+    except Exception as e:
+        print(f"[FAULT ERROR] {e}")
+        return {"status": "error", "message": "Fault report failed."}
+    finally:
+        conn.close()
 
 
 def handle_update_status(data):
-    room_id = data.get("room_id")
+    room_id    = data.get("room_id")
     new_status = data.get("new_status")
+    changed_by = data.get("changed_by")
 
-    publish_message(
-        f"room/{room_id}/status",
-        new_status
-    )
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
 
-    return {
-        "status": "ok",
-        "message": "Room status updated"
-    }
+    try:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT status FROM rooms WHERE id = %s", (room_id,))
+        room = cursor.fetchone()
+        old_status = room["status"] if room else "unknown"
+
+        cursor.execute("UPDATE rooms SET status = %s WHERE id = %s", (new_status, room_id))
+        cursor.execute("""
+            INSERT INTO room_status_log (room_id, changed_by, old_status, new_status, reason)
+            VALUES (%s, %s, %s, %s, 'Manual status update')
+        """, (room_id, changed_by, old_status, new_status))
+        conn.commit()
+        cursor.close()
+
+        publish_message(f"room/{room_id}/status", new_status)
+
+        return {"status": "ok", "message": f"Room status updated to {new_status}."}
+
+    except Exception as e:
+        print(f"[UPDATE STATUS ERROR] {e}")
+        return {"status": "error", "message": "Status update failed."}
+    finally:
+        conn.close()
 
 
 def handle_save_sensor(data):
-    return {
-        "status": "ok",
-        "message": "Sensor data saved"
-    }
+    return {"status": "ok", "message": "Sensor data saved"}
 
 
 def handle_get_room_info(data):
     return {
         "status": "ok",
         "room": {
-            "id": 1,
-            "room_code": "A201",
-            "building": "Building A",
-            "capacity": 30,
-            "status": "available"
+            "id": 1, "room_code": "A201",
+            "building": "Building A", "capacity": 30, "status": "available"
         },
-        "next_booking": {
-            "start_time": "10:00",
-            "end_time": "12:00",
-            "user": "Alice Johnson"
-        },
-        "sensor": {
-            "temperature": 22.5,
-            "humidity": 55.3,
-            "pressure": 1013.2
-        }
-    }
-
-
-def handle_get_bookings(data):
-    return {
-        "status": "ok",
-        "bookings": [
-            {
-                "id": 1,
-                "room_code": "A201",
-                "date": "2026-05-01",
-                "start_time": "10:00",
-                "end_time": "12:00",
-                "status": "active",
-                "token": "tok_a1b2c3d4e5f6"
-            }
-        ]
+        "next_booking": {"start_time": "10:00", "end_time": "12:00", "user": "Alice Johnson"},
+        "sensor": {"temperature": 22.5, "humidity": 55.3, "pressure": 1013.2}
     }
 
 
@@ -351,24 +625,17 @@ def handle_get_bookings(data):
 
 def start():
     context = zmq.Context()
-    socket = context.socket(zmq.REP)
-
+    socket  = context.socket(zmq.REP)
     socket.bind(f"tcp://0.0.0.0:{PORT}")
-
     print(f"[MASTER PI SERVER] Listening on port {PORT}...")
 
     while True:
-        payload = socket.recv_json()
-
+        payload  = socket.recv_json()
         print(f"[SERVER] Received: {payload}")
-
-        action = payload.get("action")
-        data = payload.get("data", {})
-
+        action   = payload.get("action")
+        data     = payload.get("data", {})
         response = route(action, data)
-
         print(f"[SERVER] Sending: {response}")
-
         socket.send_json(response)
 
 
