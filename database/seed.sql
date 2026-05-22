@@ -4,17 +4,17 @@ USE piot_db;
 
 -- ─────────────────────────────────────────
 -- USERS
--- passwords are hashed with bcrypt
+-- passwords are hashed with sha256
 -- plain text for reference:
 --   admin        → admin123
 --   students     → password123
 --   security     → security123
 -- ─────────────────────────────────────────
 INSERT INTO users (university_id, full_name, email, password_hash, role) VALUES
-('ADMIN',  'System Admin',    'admin@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'admin'),
-('S001',      'Alice Johnson',   'alice@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'user'),
-('T001',      'Dr. James Lee',   'james@rmit.edu.au',    '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'user'),
-('SEC001',    'Mike Security',   'mike@uni.edu.au',     '$2b$12$KIXxFqmHQp6Zp6Zp6Zp6ZuQp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Zp6Z', 'security');
+('ADMIN',  'System Admin',    'admin@rmit.edu.au',    '240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'admin'),
+('S001',      'Alice Johnson',   'alice@rmit.edu.au',    'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'user'),
+('T001',      'Dr. James Lee',   'james@rmit.edu.au',    'ef92b778bafe771e89245b89ecbc08a44a4e166c06659911881f383d4473e94f', 'user'),
+('SEC001',    'Mike Security',   'mike@uni.edu.au',     'eae9965e8315dd94b13f0ecf097be92d43fbb5b07f432b824f418d2b84a7de35', 'security');
 
 -- ─────────────────────────────────────────
 -- ROOMS
