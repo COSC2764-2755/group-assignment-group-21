@@ -604,19 +604,110 @@ def handle_update_status(data):
 
 
 def handle_save_sensor(data):
-    return {"status": "ok", "message": "Sensor data saved"}
+    """Save a sensor reading from a Room Pi to the database."""
+    room_id     = data.get("room_id")
+    temperature = data.get("temperature")
+    humidity    = data.get("humidity")
+    pressure    = data.get("pressure")
+
+    if not room_id:
+        return {"status": "error", "message": "room_id is required."}
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO sensor_readings (room_id, temperature, humidity, pressure) "
+            "VALUES (%s, %s, %s, %s)",
+            (room_id, temperature, humidity, pressure)
+        )
+        conn.commit()
+        cursor.close()
+        print(f"[SENSOR] Saved reading for room {room_id}: "
+              f"temp={temperature} humidity={humidity} pressure={pressure}")
+        return {"status": "ok", "message": "Sensor data saved."}
+    except Exception as e:
+        print(f"[SENSOR ERROR] {e}")
+        return {"status": "error", "message": "Failed to save sensor data."}
+    finally:
+        conn.close()
 
 
 def handle_get_room_info(data):
-    return {
-        "status": "ok",
-        "room": {
-            "id": 1, "room_code": "A201",
-            "building": "Building A", "capacity": 30, "status": "available"
-        },
-        "next_booking": {"start_time": "10:00", "end_time": "12:00", "user": "Alice Johnson"},
-        "sensor": {"temperature": 22.5, "humidity": 55.3, "pressure": 1013.2}
-    }
+    """
+    Return room status, today's bookings, and latest sensor reading
+    for a given room_id.
+    """
+    room_id = data.get("room_id", 1)
+
+    conn = get_connection()
+    if conn is None:
+        return {"status": "error", "message": "Database connection failed."}
+
+    try:
+        cursor = conn.cursor(dictionary=True)
+
+        # Room details
+        cursor.execute(
+            "SELECT id, room_code, building, capacity, status FROM rooms WHERE id = %s",
+            (room_id,)
+        )
+        room = cursor.fetchone()
+        if not room:
+            return {"status": "error", "message": f"Room {room_id} not found."}
+
+        # Today's bookings
+        cursor.execute("""
+            SELECT b.id, b.start_time, b.end_time, b.status, u.full_name
+            FROM bookings b
+            JOIN users u ON b.user_id = u.id
+            WHERE b.room_id = %s
+              AND b.date = CURDATE()
+              AND b.status = 'active'
+            ORDER BY b.start_time
+        """, (room_id,))
+        bookings_raw = cursor.fetchall()
+        bookings = []
+        for b in bookings_raw:
+            bookings.append({
+                "start_time": timedelta_to_str(b["start_time"]),
+                "end_time":   timedelta_to_str(b["end_time"]),
+                "user_name":  b["full_name"],
+                "status":     b["status"],
+            })
+
+        # Latest sensor reading
+        cursor.execute("""
+            SELECT temperature, humidity, pressure
+            FROM sensor_readings
+            WHERE room_id = %s
+            ORDER BY recorded_at DESC
+            LIMIT 1
+        """, (room_id,))
+        sensor = cursor.fetchone() or {
+            "temperature": None,
+            "humidity":    None,
+            "pressure":    None
+        }
+        if sensor:
+            sensor = {k: float(v) if v is not None else None for k, v in sensor.items()}
+        cursor.close()
+
+        return {
+            "status":   "ok",
+            "room":     room,
+            "bookings": bookings,
+            "sensor":   sensor,
+        }
+
+    except Exception as e:
+        print(f"[ROOM INFO ERROR] {e}")
+        return {"status": "error", "message": "Failed to get room info."}
+    finally:
+        conn.close()
 
 
 # --------------------------------------------------

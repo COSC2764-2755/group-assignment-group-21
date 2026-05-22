@@ -1,3 +1,5 @@
+import threading
+import time
 from flask import Flask, render_template, request
 from socket_client import (
     get_room_info,
@@ -5,89 +7,132 @@ from socket_client import (
     save_sensor_reading,
     report_fault
 )
+from sensor import read_sensor
 
 app = Flask(__name__)
 
+# Each Room Pi has a fixed room ID — set via environment or hardcode per device
+ROOM_ID = 1
 
-# HOME PAGE
-@app.route('/')
+
+# --------------------------------------------------
+# BACKGROUND SENSOR PUSH
+# Every 10 seconds read sensors and push to Master Pi
+# --------------------------------------------------
+
+def sensor_loop():
+    """Background thread: read sensors every 10s and save to Master Pi."""
+    while True:
+        try:
+            reading = read_sensor()
+            save_sensor_reading(
+                room_id=ROOM_ID,
+                temperature=reading["temperature"],
+                humidity=reading["humidity"],
+                pressure=reading["pressure"]
+            )
+        except Exception as e:
+            print(f"[SENSOR LOOP ERROR] {e}")
+        time.sleep(10)
+
+
+# --------------------------------------------------
+# ROUTES
+# --------------------------------------------------
+
+@app.route("/")
 def home():
-    return """
-    <h2>Room Pi System</h2>
-    <ul>
-        <li><a href="/verify_token">Verify Room Access Token</a></li>
-        <li><a href="/room_info">View Room Information</a></li>
-        <li><a href="/report_fault">Report Fault</a></li>
-    </ul>
+    return redirect_to_display()
+
+
+def redirect_to_display():
+    from flask import redirect
+    return redirect("/display")
+
+
+@app.route("/display")
+def display():
     """
-
-
-# VERIFY TOKEN PAGE
-@app.route('/verify_token', methods=['GET', 'POST'])
-def verify_token_page():
-    if request.method == 'POST':
-        token = request.form['token']
-
-        response = validate_token(token, 1)
-
-        if response["status"] == "ok":
-            return "Access Granted"
-
-        return "Access Denied"
-
-    return render_template("verify_token.html")
-
-
-# ROOM INFO PAGE
-@app.route('/room_info')
-def room_info():
-    response = get_room_info(1)
-
-    return f"""
-    <h2>Room Information</h2>
-    <p>Status: {response.get('status', 'Unknown')}</p>
-    <p>Next Booking: {response.get('next_booking', 'No upcoming booking')}</p>
-    <a href="/">Back</a>
+    Main room display page — shows status, sensor readings,
+    and today's booking schedule. Auto-refreshes every 10s.
     """
+    response = get_room_info(ROOM_ID)
 
-
-# REPORT FAULT PAGE
-@app.route('/report_fault', methods=['GET', 'POST'])
-def report_fault_page():
-    if request.method == 'POST':
-        issue = request.form['issue']
-
-        response = report_fault(
-            1,
-            issue
+    if response.get("status") != "ok":
+        return render_template(
+            "display.html",
+            error=response.get("message", "Could not load room info."),
+            room_id=ROOM_ID
         )
 
+    room     = response.get("room", {})
+    bookings = response.get("bookings", [])
+    sensor   = response.get("sensor", {})
+
+    return render_template(
+        "display.html",
+        room=room,
+        bookings=bookings,
+        sensor=sensor,
+        room_id=ROOM_ID
+    )
+
+
+@app.route("/verify_token", methods=["GET", "POST"])
+def verify_token_page():
+    """Room Pi token verification — user presents token on arrival."""
+    result = None
+
+    if request.method == "POST":
+        token    = request.form.get("token", "").strip()
+        response = validate_token(token, ROOM_ID)
+
         if response["status"] == "ok":
-            return "Fault Report Submitted Successfully"
+            result = {
+                "granted": True,
+                "user":     response.get("user", ""),
+                "end_time": response.get("end_time", "")
+            }
+        else:
+            result = {
+                "granted": False,
+                "message": response.get("message", "Access denied.")
+            }
 
-        return "Failed to Report Fault"
+    return render_template("verify_token.html", result=result, room_id=ROOM_ID)
 
-    return """
-    <h2>Report Room Fault</h2>
-    <form method="POST">
-        <input
-            type="text"
-            name="issue"
-            placeholder="Describe the issue"
-            required
-        >
-        <button type="submit">
-            Submit Fault Report
-        </button>
-    </form>
-    <br>
-    <a href="/">Back</a>
-    """
 
+@app.route("/report_fault", methods=["GET", "POST"])
+def report_fault_page():
+    """Allow room-side fault reporting."""
+    success = False
+    error   = None
+
+    if request.method == "POST":
+        issue    = request.form.get("issue", "").strip()
+        response = report_fault(ROOM_ID, issue)
+
+        if response["status"] == "ok":
+            success = True
+        else:
+            error = response.get("message", "Failed to report fault.")
+
+    return render_template(
+        "report_fault.html",
+        success=success,
+        error=error,
+        room_id=ROOM_ID
+    )
+
+
+# --------------------------------------------------
+# ENTRY POINT
+# --------------------------------------------------
 
 if __name__ == "__main__":
-    app.run(
-        debug=True,
-        host="0.0.0.0",
-        port=5002
-    )
+    # Start sensor background thread
+    sensor_thread = threading.Thread(target=sensor_loop, daemon=True)
+    sensor_thread.start()
+    print(f"[ROOM PI] Sensor loop started for room {ROOM_ID}")
+
+    app.run(debug=True, host="0.0.0.0", port=5002)

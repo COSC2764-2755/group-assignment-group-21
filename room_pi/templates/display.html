@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="refresh" content="30" />
-  <title>Room Display</title>
+  <meta http-equiv="refresh" content="10" />
+  <title>Room {{ room.room_code if room else room_id }} Display</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -68,7 +68,7 @@
       margin-bottom: 1rem;
     }
 
-    /* Room status card spans full width */
+    /* Status card spans full width */
     .status-card {
       grid-column: 1 / -1;
       display: flex;
@@ -76,7 +76,8 @@
       justify-content: space-between;
     }
 
-    .status-card .room-name { font-size: 2rem; font-weight: 700; }
+    .status-card .room-name  { font-size: 2rem; font-weight: 700; }
+    .status-card .room-meta  { color: #8b949e; font-size: 0.9rem; margin-top: 0.3rem; }
     .status-card .status-right { text-align: right; }
     .status-card .status-label { font-size: 0.8rem; color: #8b949e; margin-bottom: 0.4rem; }
 
@@ -92,11 +93,11 @@
     .sensor-item .value { font-size: 2rem; font-weight: 700; color: #58a6ff; }
     .sensor-item .unit  { font-size: 0.8rem; color: #8b949e; }
     .sensor-item .label { font-size: 0.75rem; color: #8b949e; margin-top: 0.2rem; }
+    .sensor-item .na    { font-size: 1.2rem; color: #484f58; }
 
     /* Bookings card */
     .bookings-card { overflow: hidden; }
-
-    .booking-list { list-style: none; }
+    .booking-list  { list-style: none; }
 
     .booking-item {
       display: flex;
@@ -109,19 +110,43 @@
     .booking-item:last-child { border-bottom: none; }
 
     .booking-time {
-      min-width: 110px;
+      min-width: 120px;
       font-size: 0.85rem;
       color: #8b949e;
       white-space: nowrap;
     }
 
-    .booking-info .user  { font-weight: 600; font-size: 0.95rem; }
-    .booking-info .desc  { font-size: 0.8rem; color: #8b949e; margin-top: 0.15rem; }
-
-    .booking-active .booking-time { color: #3fb950; }
-    .booking-active .user         { color: #3fb950; }
-
+    .booking-info .user { font-weight: 600; font-size: 0.95rem; }
     .no-bookings { color: #8b949e; font-size: 0.9rem; padding: 1rem 0; }
+
+    /* Error banner */
+    .error-banner {
+      grid-column: 1 / -1;
+      background: #3d0a0a;
+      border: 1px solid #f85149;
+      border-radius: 10px;
+      padding: 1.5rem;
+      color: #f85149;
+      text-align: center;
+      font-size: 1rem;
+    }
+
+    /* Nav links */
+    .nav-links {
+      display: flex;
+      gap: 1rem;
+      padding: 0.75rem 2rem;
+      background: #161b22;
+      border-top: 1px solid #21262d;
+    }
+
+    .nav-links a {
+      color: #58a6ff;
+      text-decoration: none;
+      font-size: 0.85rem;
+    }
+
+    .nav-links a:hover { text-decoration: underline; }
 
     footer {
       text-align: center;
@@ -135,73 +160,95 @@
 <body>
 
 <header>
-  <h1>Group Iot Room Display</h1>
+  <h1>🏛 Classroom Display</h1>
   <span class="clock" id="clock">--:--:--</span>
 </header>
 
 <main>
-  <!-- Status Card -->
-  <div class="card status-card">
-    <div>
-      <div class="room-name">INSERT ROOM name</div>
-      <div style="color:#8b949e; font-size:0.9rem; margin-top:0.3rem;">
-        INSERT ROOM LOCATION
-      </div>
-    </div>
-    <div class="status-right">
-      <div class="status-label">Current Status</div>
-      INSERT ROOM STATUS
-      <span class="badge badge-{{ s }}">INSERT ROOM STATUS CONDITION</span>
-    </div>
-  </div>
+  {% if error %}
+    <div class="error-banner">⚠️ {{ error }}</div>
 
-  <!-- Sensor Card -->
-  <div class="card">
-    <h2>Environmental Readings</h2>
-    <div class="sensor-grid">
-      <div class="sensor-item">
-        <div class="value">INSERT SENSOR TEMP</div>
-        <div class="unit">°C</div>
-        <div class="label">Temperature</div>
+  {% else %}
+    <!-- Status Card -->
+    <div class="card status-card">
+      <div>
+        <div class="room-name">Room {{ room.room_code }}</div>
+        <div class="room-meta">{{ room.building }} &nbsp;·&nbsp; Capacity: {{ room.capacity }}</div>
       </div>
-      <div class="sensor-item">
-        <div class="value">INSERT SENSOR Humidity</div>
-        <div class="unit">%</div>
-        <div class="label">Humidity</div>
-      </div>
-      <div class="sensor-item">
-        <div class="value">INSERT SENSOR PRESSURE</div>
-        <div class="unit">hPa</div>
-        <div class="label">Pressure</div>
+      <div class="status-right">
+        <div class="status-label">Current Status</div>
+        <span class="badge badge-{{ room.status }}">
+          {% if room.status == 'in_use' %}In Use
+          {% elif room.status == 'available' %}Available
+          {% elif room.status == 'maintenance' %}Maintenance
+          {% elif room.status == 'fault' %}⚠ Fault
+          {% else %}{{ room.status }}{% endif %}
+        </span>
       </div>
     </div>
-  </div>
 
-  <!-- Bookings Card -->
-  <div class="card bookings-card">
-    <h2>Today's Schedule</h2>
-    {% if bookings %}
-      <ul class="booking-list">
-        {% for b in bookings %}
-          <li class="booking-item {% if b.active %}booking-active{% endif %}">
-            <span class="booking-time">{{ b.start_time }} – {{ b.end_time }}</span>
-            <div class="booking-info">
-              <div class="user">{{ b.user_name }}</div>
-              {% if b.description %}
-                <div class="desc">{{ b.description }}</div>
-              {% endif %}
-            </div>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <p class="no-bookings">No bookings scheduled for today.</p>
-    {% endif %}
-  </div>
+    <!-- Sensor Card -->
+    <div class="card">
+      <h2>Environmental Readings</h2>
+      <div class="sensor-grid">
+        <div class="sensor-item">
+          {% if sensor.temperature is not none %}
+            <div class="value">{{ sensor.temperature }}</div>
+            <div class="unit">°C</div>
+          {% else %}
+            <div class="na">—</div>
+          {% endif %}
+          <div class="label">Temperature</div>
+        </div>
+        <div class="sensor-item">
+          {% if sensor.humidity is not none %}
+            <div class="value">{{ sensor.humidity }}</div>
+            <div class="unit">%</div>
+          {% else %}
+            <div class="na">—</div>
+          {% endif %}
+          <div class="label">Humidity</div>
+        </div>
+        <div class="sensor-item">
+          {% if sensor.pressure is not none %}
+            <div class="value">{{ sensor.pressure }}</div>
+            <div class="unit">hPa</div>
+          {% else %}
+            <div class="na">—</div>
+          {% endif %}
+          <div class="label">Pressure</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bookings Card -->
+    <div class="card bookings-card">
+      <h2>Today's Schedule</h2>
+      {% if bookings %}
+        <ul class="booking-list">
+          {% for b in bookings %}
+            <li class="booking-item">
+              <span class="booking-time">{{ b.start_time }} – {{ b.end_time }}</span>
+              <div class="booking-info">
+                <div class="user">{{ b.user_name }}</div>
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="no-bookings">No bookings scheduled for today.</p>
+      {% endif %}
+    </div>
+  {% endif %}
 </main>
 
+<div class="nav-links">
+  <a href="/verify_token">🔑 Verify Access Token</a>
+  <a href="/report_fault">⚠️ Report Fault</a>
+</div>
+
 <footer>
-  Auto-refreshes every 30 seconds &nbsp;|&nbsp; Room ID: {{ room_id }}
+  Auto-refreshes every 10 seconds &nbsp;|&nbsp; Room ID: {{ room_id }}
 </footer>
 
 <script>
