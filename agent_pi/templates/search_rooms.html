@@ -1,48 +1,63 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Search Rooms</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Search Rooms{% endblock %}
+{% block heading %}Search Rooms{% endblock %}
 
-    <h1>Search Available Rooms</h1>
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h2>Find Available Rooms</h2>
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
+  <form method="POST">
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" name="date" value="{{ date }}" required/>
+    </div>
+    <div class="form-group">
+      <label>Start Time</label>
+      <input type="time" name="start_time" value="{{ start_time }}" required/>
+    </div>
+    <div class="form-group">
+      <label>End Time</label>
+      <input type="time" name="end_time" value="{{ end_time }}" required/>
+    </div>
+    <button type="submit" class="btn btn-primary">Search</button>
+  </form>
+</div>
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-
-    <form method="POST">
-        <label>Date:</label><br>
-        <input type="date" name="date" value="{{ date }}" required><br><br>
-
-        <label>Start Time:</label><br>
-        <input type="time" name="start_time" value="{{ start_time }}" required><br><br>
-
-        <label>End Time:</label><br>
-        <input type="time" name="end_time" value="{{ end_time }}" required><br><br>
-
-        <button type="submit">Search</button>
-    </form>
-
-    <hr>
-
-    <h2>Available Rooms</h2>
-
-    {% for room in rooms %}
-    <p>
-        Room: {{ room['room_code'] }} |
-        Building: {{ room['building'] }} |
-        Capacity: {{ room['capacity'] }} |
-        Status: {{ room['status'] }}
-
-        <a href="/bookroom/{{ room['id'] }}">
-            <button>Book Room</button>
-        </a>
-    </p>
-    {% endfor %}
-
-    <br>
-    <a href="/dashboard">Back to Dashboard</a>
-
-</body>
-</html>
+{% if rooms %}
+<div class="card">
+  <h2>Available Rooms</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Room</th>
+          <th>Building</th>
+          <th>Capacity</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for room in rooms %}
+        <tr>
+          <td><strong>{{ room.room_code }}</strong></td>
+          <td>{{ room.building }}</td>
+          <td>{{ room.capacity }}</td>
+          <td><span class="badge badge-active">available</span></td>
+          <td>
+            <a href="/bookroom/{{ room.id }}" class="btn btn-primary">Book</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% elif date %}
+<div class="card">
+  <p style="color:#8b949e;">No available rooms found for the selected time slot.</p>
+</div>
+{% endif %}
+{% endblock %}

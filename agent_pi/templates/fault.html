@@ -1,32 +1,34 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Report a Fault</title>
-</head>
-<body>
+{% extends "base.html" %}
+{% block title %}Report Fault{% endblock %}
+{% block heading %}Report a Fault{% endblock %}
 
-    <h1>Report a Room Fault</h1>
+{% block content %}
+<div class="card" style="max-width:480px;">
+  <h2>Submit Fault Report</h2>
 
-    {% if success %}
-        <p style="color: green;">{{ success }}</p>
-    {% endif %}
+  {% if success %}
+    <div class="alert alert-success">{{ success }}</div>
+  {% endif %}
 
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
+  {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+  {% endif %}
 
-    <form method="POST">
-        <label>Room ID:</label><br>
-        <input type="number" name="room_id" required><br><br>
-
-        <label>Description of fault:</label><br>
-        <textarea name="description" rows="4" cols="40" required></textarea><br><br>
-
-        <button type="submit">Submit Fault Report</button>
-    </form>
-
-    <br>
-    <a href="/dashboard">Back to Dashboard</a>
-
-</body>
-</html>
+  <form method="POST">
+    <div class="form-group">
+      <label>Room ID</label>
+      <input type="number" name="room_id" placeholder="e.g. 1" required/>
+    </div>
+    <div class="form-group">
+      <label>Description of Fault</label>
+      <textarea name="description" rows="4"
+                placeholder="Describe the issue (e.g. projector not working, AC making noise)"
+                required></textarea>
+    </div>
+    <div style="display:flex; gap:0.75rem; margin-top:0.5rem;">
+      <button type="submit" class="btn btn-danger">Submit Report</button>
+      <a href="/dashboard" class="btn btn-grey">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}
