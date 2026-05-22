@@ -54,6 +54,42 @@ Room Pi:
    git add requirements.txt
    git commit -m "add <package-name>"
 
+## Demo Day Setup (Multi-Device)
+
+### Before leaving home
+- Push all changes to GitHub
+- Ensure database is seeded and working
+
+### On the day
+
+**1. Find the Master Pi's IP:**
+```bash
+hostname -I   # on Master Pi
+```
+
+**2. Update `.env` on each device** with the Master Pi's IP:
+```
+MASTER_PI_IP=192.168.x.x
+```
+
+**3. Allow remote DB connections** (run once on the laptop hosting MySQL):
+```sql
+CREATE USER 'piot_user'@'%' IDENTIFIED BY 'piot_password';
+GRANT ALL PRIVILEGES ON piot_db.* TO 'piot_user'@'%';
+FLUSH PRIVILEGES;
+```
+
+**4. Update `master_pi/db.py`** with the laptop's IP on the day.
+
+**5. Start in order:**
+1. MySQL on laptop
+2. Mosquitto on Master Pi
+3. Master Pi app
+4. Room Pi app
+5. Agent Pi app
+
+---
+
 # Code Architecture - V1
 <img width="1358" height="1258" alt="image" src="https://github.com/user-attachments/assets/6e3a18f3-21c0-4678-a4ea-5d5c1bd628bd" />
 
