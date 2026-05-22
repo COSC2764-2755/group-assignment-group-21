@@ -1,12 +1,16 @@
+import threading
+import os
 from flask import Flask, render_template, request, redirect, session
 from socket_client import (
     login, register, search_rooms, get_bookings,
     book_room, cancel_booking, checkin, checkout,
     report_fault
 )
+from mqtt_subscriber import start as start_general_mqtt, get_recent_messages
+from mqtt_security import start as start_security_mqtt
 
 app = Flask(__name__)
-app.secret_key = "secret_key_here"
+app.secret_key = os.getenv("FLASK_SECRET", "agent_pi_secret_key")
 
 
 # HOME PAGE
@@ -59,7 +63,8 @@ def register_page():
 def dashboard():
     if "user_id" not in session:
         return redirect('/login')
-    return render_template("dashboard.html", full_name=session["full_name"])
+    alerts = get_recent_messages()
+    return render_template("dashboard.html", full_name=session["full_name"], alerts=alerts)
 
 
 # SEARCH ROOMS — /search
@@ -212,4 +217,12 @@ def logout():
 
 
 if __name__ == "__main__":
+    # Start general MQTT subscriber for all users (admin broadcasts, room status)
+    threading.Thread(target=start_general_mqtt, daemon=True).start()
+    print("[AGENT PI] General MQTT subscriber started")
+
+    # Start security MQTT subscriber (triggers Sense HAT on fault alerts)
+    threading.Thread(target=start_security_mqtt, daemon=True).start()
+    print("[AGENT PI] Security MQTT subscriber started")
+
     app.run(debug=True, host="0.0.0.0", port=5001)

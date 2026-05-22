@@ -12,4 +12,16 @@
     <a href="/fault"      class="btn" style="background:#9a6700; color:#fff;">⚠️ Report a Fault</a>
   </div>
 </div>
+
+{% if alerts %}
+<div class="card">
+  <h2>📢 Recent Announcements</h2>
+  {% for alert in alerts|reverse %}
+    <div style="padding:0.6rem 0; border-bottom:1px solid #21262d; font-size:0.875rem;">
+      <span style="color:#8b949e; font-size:0.75rem;">{{ alert.topic }}</span><br/>
+      {{ alert.message }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}
