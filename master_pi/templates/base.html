@@ -234,6 +234,7 @@
   <a href="/logs"       {% if request.path == '/logs'       %}class="active"{% endif %}>📋 Action Logs</a>
   <a href="/faults"     {% if '/faults'   in request.path   %}class="active"{% endif %}>⚠️  Fault Reports</a>
   <a href="/reports"    {% if '/reports'  in request.path   %}class="active"{% endif %}>📈 Reports</a>
+  <a href="/health"     {% if '/health'   in request.path   %}class="active"{% endif %}>🖥 System Health</a>
   <div class="logout">
     <a href="/logout">🚪 Logout</a>
   </div>

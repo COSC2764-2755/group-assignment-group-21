@@ -473,6 +473,66 @@ def download_report():
 
 
 # --------------------------------------------------
+# SYSTEM HEALTH
+# --------------------------------------------------
+ 
+@app.route("/health")
+@admin_required
+def health():
+    """
+    System health dashboard.
+    Shows each room's Pi connectivity status and sensor freshness
+    based on the most recent sensor reading in the database.
+    """
+    conn = get_connection()
+    rooms = []
+    if conn:
+        try:
+            cursor = conn.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT
+                    r.id,
+                    r.room_code,
+                    r.building,
+                    r.status,
+                    sr.temperature,
+                    sr.humidity,
+                    sr.pressure,
+                    sr.recorded_at AS last_seen,
+                    TIMESTAMPDIFF(SECOND, sr.recorded_at, NOW()) AS age_seconds
+                FROM rooms r
+                LEFT JOIN (
+                    SELECT room_id,
+                           temperature, humidity, pressure, recorded_at,
+                           ROW_NUMBER() OVER (PARTITION BY room_id ORDER BY recorded_at DESC) AS rn
+                    FROM sensor_readings
+                ) sr ON sr.room_id = r.id AND sr.rn = 1
+                ORDER BY r.building, r.room_code
+            """)
+            rooms = cursor.fetchall()
+            # Convert datetime to string for template
+            for row in rooms:
+                if row.get("last_seen"):
+                    row["last_seen"] = str(row["last_seen"])
+            cursor.close()
+        finally:
+            conn.close()
+ 
+    # Build summary counts
+    online  = sum(1 for r in rooms if r["age_seconds"] is not None and r["age_seconds"] <= 120)
+    stale   = sum(1 for r in rooms if r["age_seconds"] is not None and r["age_seconds"] > 120)
+    offline = sum(1 for r in rooms if r["age_seconds"] is None)
+ 
+    summary = {
+        "online":  online,
+        "stale":   stale,
+        "offline": offline,
+        "total":   len(rooms),
+    }
+ 
+    return render_template("health.html", rooms=rooms, summary=summary)
+
+# --------------------------------------------------
 # ENTRY POINT — run Flask + socket server together
 # --------------------------------------------------
 
