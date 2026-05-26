@@ -488,6 +488,39 @@ def handle_validate_token(data):
 
         if result["used"]:
             return {"status": "failed", "message": "Token has already been used."}
+        
+        # Check if current time is within the booking window
+        from datetime import datetime, date as date_type
+        today = date_type.today()
+        booking_date = result["date"]
+        if not isinstance(booking_date, date_type):
+            booking_date = date_type.fromisoformat(str(booking_date))
+
+        if booking_date != today:
+            return {"status": "failed", "message": "This booking is not for today."}
+
+        now = datetime.now().time()
+
+        def to_time(val):
+            if hasattr(val, "total_seconds"):
+                total = int(val.total_seconds())
+                return datetime.strptime(
+                    f"{total // 3600:02}:{(total % 3600) // 60:02}", "%H:%M"
+                ).time()
+            if isinstance(val, str):
+                return datetime.strptime(val, "%H:%M").time()
+            return val
+
+        start_t = to_time(result["start_time"]) if result.get("start_time") else None
+        end_t   = to_time(result["end_time"])   if result.get("end_time")   else None
+
+        if start_t and now < start_t:
+            return {
+                "status": "failed",
+                "message": f"Booking does not start until {start_t.strftime('%H:%M')}."
+            }
+        if end_t and now > end_t:
+            return {"status": "failed", "message": "Booking time has already passed."}
 
         # Mark token as used
         cursor.execute("UPDATE tokens SET used = TRUE WHERE id = %s", (result["token_id"],))
