@@ -8,7 +8,7 @@
 | Name | Student ID | Responsibilities |
 |------|-----------|-----------------|
 | Manish Mehra | s4145587 | Master Pi, System Architecture, Custom Feature Enhancement |
-| Member 2 | s0000002 | Agent Pi, User Booking System, Token Generation |
+| Rewa A. Joshi | s4113932 | Agent Pi, User Booking System, Token Generation |
 | Ishaan Vikas | s3941099 | Room Pi, MQTT, Sense HAT, Fault Reporting |
 | Sonia Nair | s39478014 | Database, UI, Unit Testing, MQTT |
 
