@@ -217,11 +217,11 @@ python -m pytest tests/ -v
 
 ## Custom Enhancements
 
-### Enhancement 1: *(Add your enhancement name here)*
-*(Description — highlight in code with `# ENHANCEMENT 1` comments)*
+### Enhancement 1: QR Code Room Access
+A QR code is dynamically generated and displayed on the Room Pi verify token page. Users scan it with their phone camera which opens the token entry form directly on their mobile browser. This removes the need to manually type the Room Pi's URL on a phone, making room access faster and more intuitive. Implemented using the qrcode Python library in room_pi/.
 
-### Enhancement 2: *(Add your enhancement name here)*
-*(Description — highlight in code with `# ENHANCEMENT 2` comments)*
+### Enhancement 2: Real-Time System Health Dashboard
+A live system health dashboard on the Master Pi admin panel shows all rooms in a card grid with their current sensor readings (temperature, humidity, pressure), room status with colour coding, and the time since the last sensor reading was received. Rooms are flagged as "Stale" if data is over 2 minutes old and "No Data" if no readings have ever been received. The dashboard auto-refreshes every 15 seconds. Implemented in master_pi/ with a dedicated /system_health route and template.
 
 ---
 
