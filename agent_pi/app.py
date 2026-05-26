@@ -8,6 +8,7 @@ from socket_client import (
 )
 from mqtt_subscriber import start as start_general_mqtt, get_recent_messages
 from mqtt_security import start as start_security_mqtt
+from datetime import date
 
 app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "agent_pi_secret_key")
@@ -73,35 +74,50 @@ def search():
     if "user_id" not in session:
         return redirect('/login')
 
-    rooms      = []
-    date       = ""
-    start_time = ""
-    end_time   = ""
+    rooms         = []
+    selected_date = ""
+    start_time    = ""
+    end_time      = ""
+    error         = None
 
     if request.method == 'POST':
-        date       = request.form['date']
-        start_time = request.form['start_time']
-        end_time   = request.form['end_time']
+        selected_date = request.form['date']
+        start_time    = request.form['start_time']
+        end_time      = request.form['end_time']
+
+        # Validate date is not in the past
+        try:
+            if date.fromisoformat(selected_date) < date.today():
+                error = "Cannot search for rooms in the past."
+                return render_template("search_rooms.html", rooms=[],
+                                       today=date.today().isoformat(),
+                                       date=selected_date,
+                                       start_time=start_time,
+                                       end_time=end_time,
+                                       error=error)
+        except ValueError:
+            pass
 
         # Store search params in session so /bookroom can use them
-        session["search_date"]       = date
+        session["search_date"]       = selected_date
         session["search_start_time"] = start_time
         session["search_end_time"]   = end_time
 
-        response = search_rooms(date, start_time, end_time)
+        response = search_rooms(selected_date, start_time, end_time)
 
         if response["status"] == "ok":
             rooms = response["rooms"]
         else:
-            return render_template("search_rooms.html", rooms=[],
-                                   error=response.get("message"))
+            error = response.get("message", "Search failed.")
 
     return render_template(
         "search_rooms.html",
         rooms=rooms,
-        date=date,
+        today=date.today().isoformat(),
+        date=selected_date,
         start_time=start_time,
-        end_time=end_time
+        end_time=end_time,
+        error=error
     )
 
 
@@ -111,27 +127,31 @@ def bookroom(room_id):
     if "user_id" not in session:
         return redirect('/login')
 
-    date       = session.get("search_date")
-    start_time = session.get("search_start_time")
-    end_time   = session.get("search_end_time")
+    selected_date = session.get("search_date")
+    start_time    = session.get("search_start_time")
+    end_time      = session.get("search_end_time")
 
-    if not all([date, start_time, end_time]):
+    if not all([selected_date, start_time, end_time]):
         return redirect('/search')
 
     response = book_room(
         session["user_id"],
         room_id,
-        date,
+        selected_date,
         start_time,
         end_time
     )
 
     if response["status"] == "ok":
         token = response["token"]
-        return render_template("booking_confirmed.html", token=token, date=date,
-                               start_time=start_time, end_time=end_time)
+        return render_template("booking_confirmed.html", token=token,
+                               date=selected_date,
+                               start_time=start_time,
+                               end_time=end_time)
 
     return render_template("search_rooms.html", rooms=[],
+                           today=date.today().isoformat(),
+                           date=selected_date,
                            error=response.get("message", "Booking failed."))
 
 
@@ -166,7 +186,7 @@ def checkin_page(booking_id):
     response = checkin(booking_id, session["user_id"])
 
     if response["status"] == "ok":
-        return f"Checked in successfully for booking #{booking_id}. <a href='/mybookings'>Back to bookings</a>"
+        return "Checked in successfully. <a href='/mybookings'>Back to bookings</a>"
 
     return f"Check-in failed: {response.get('message')}. <a href='/mybookings'>Back</a>"
 
@@ -180,7 +200,7 @@ def checkout_page(booking_id):
     response = checkout(booking_id, session["user_id"])
 
     if response["status"] == "ok":
-        return f"Checked out successfully. Room returned. <a href='/mybookings'>Back to bookings</a>"
+        return "Checked out successfully. <a href='/mybookings'>Back to bookings</a>"
 
     return f"Check-out failed: {response.get('message')}. <a href='/mybookings'>Back</a>"
 

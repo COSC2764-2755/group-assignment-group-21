@@ -6,6 +6,8 @@ import secrets
 from dotenv import load_dotenv
 from mqtt_publisher import publish_message
 from db import get_connection
+from datetime import date as date_type
+
 
 load_dotenv()
 
@@ -201,6 +203,10 @@ def handle_search_rooms(data):
     date       = data.get("date", "").strip()
     start_time = data.get("start_time", "").strip()
     end_time   = data.get("end_time", "").strip()
+    search_date = date_type.fromisoformat(str(date)) if date else None
+    
+    if search_date and search_date < date_type.today():
+        return {"status": "error", "message": "Cannot search for rooms in the past."}
 
     if not all([date, start_time, end_time]):
         return {"status": "error", "message": "Date, start time, and end time are required."}
