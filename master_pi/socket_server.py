@@ -57,6 +57,29 @@ def timedelta_to_str(val) -> str:
     return str(val)
 
 
+def serialise(obj):
+    """
+    Recursively convert non-JSON-serialisable types so responses
+    can be sent safely over ZMQ sockets between devices.
+    Handles: datetime/date/time objects, Decimal, timedelta.
+    """
+    if isinstance(obj, dict):
+        return {k: serialise(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [serialise(i) for i in obj]
+    if hasattr(obj, 'isoformat'):   # datetime, date, time
+        return str(obj)
+    if hasattr(obj, 'total_seconds'):  # timedelta
+        return timedelta_to_str(obj)
+    try:
+        from decimal import Decimal
+        if isinstance(obj, Decimal):
+            return float(obj)
+    except ImportError:
+        pass
+    return obj
+
+
 def log_action(conn, user_id, action, detail=""):
     try:
         cursor = conn.cursor()
@@ -103,12 +126,12 @@ def handle_login(data):
 
         log_action(conn, user["id"], "login", f"User logged in: {university_id}")
 
-        return {
+        return serialise({
             "status": "ok",
             "user_id":   user["id"],
             "full_name": user["full_name"],
             "role":      user["role"]
-        }
+        })
 
     except Exception as e:
         print(f"[LOGIN ERROR] {e}")
@@ -161,7 +184,7 @@ def handle_register(data):
         log_action(conn, new_user_id, "register", f"New user registered: {university_id}")
         print(f"[REGISTER] {university_id} ({email})")
 
-        return {"status": "ok", "message": "Registered successfully."}
+        return serialise({"status": "ok", "message": "Registered successfully."})
 
     except Exception as e:
         print(f"[REGISTER ERROR] {e}")
@@ -215,7 +238,7 @@ def handle_search_rooms(data):
                 if hasattr(val, 'seconds'):
                     room[key] = timedelta_to_str(val)
 
-        return {"status": "ok", "rooms": rooms}
+        return serialise({"status": "ok", "rooms": rooms})
 
     except Exception as e:
         print(f"[SEARCH ROOMS ERROR] {e}")
@@ -277,7 +300,7 @@ def handle_book_room(data):
                    f"Booked room {room_id} on {date} {start_time}-{end_time}, token: {token}")
         print(f"[BOOK ROOM] user={user_id} room={room_id} date={date} token={token}")
 
-        return {"status": "ok", "booking_id": booking_id, "token": token}
+        return serialise({"status": "ok", "booking_id": booking_id, "token": token})
 
     except Exception as e:
         print(f"[BOOK ROOM ERROR] {e}")
@@ -478,13 +501,13 @@ def handle_validate_token(data):
                    f"Token validated room {room_id} booking {result['booking_id']}")
         print(f"[TOKEN] Valid - room={room_id} user={result['full_name']}")
 
-        return {
+        return serialise({
             "status":     "ok",
             "message":    "Access granted.",
             "user":       result["full_name"],
             "booking_id": result["booking_id"],
             "end_time":   end_time
-        }
+        })
 
     except Exception as e:
         print(f"[TOKEN ERROR] {e}")
@@ -529,7 +552,7 @@ def handle_get_bookings(data):
             if booking.get("date"):
                 booking["date"] = str(booking["date"])
 
-        return {"status": "ok", "bookings": bookings}
+        return serialise({"status": "ok", "bookings": bookings})
 
     except Exception as e:
         print(f"[GET BOOKINGS ERROR] {e}")
@@ -696,12 +719,12 @@ def handle_get_room_info(data):
             sensor = {k: float(v) if v is not None else None for k, v in sensor.items()}
         cursor.close()
 
-        return {
+        return serialise({
             "status":   "ok",
             "room":     room,
             "bookings": bookings,
             "sensor":   sensor,
-        }
+        })
 
     except Exception as e:
         print(f"[ROOM INFO ERROR] {e}")
