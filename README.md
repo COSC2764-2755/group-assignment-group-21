@@ -7,7 +7,7 @@
 
 | Name | Student ID | Responsibilities |
 |------|-----------|-----------------|
-| Member 1 | s0000001 | Master Pi, Admin Web Interface, User Management |
+| Manish Mehra | s4145587 | Master Pi, System Architecture, Custom Feature Enhancement |
 | Member 2 | s0000002 | Agent Pi, User Booking System, Token Generation |
 | Ishaan Vikas | s3941099 | Room Pi, MQTT, Sense HAT, Fault Reporting |
 | Sonia Nair | s39478014 | Database, UI, Unit Testing, MQTT |
