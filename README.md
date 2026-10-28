@@ -12,7 +12,7 @@
 | Ishaan Vikas | s3941099 | Room Pi, MQTT, Sense HAT, Fault Reporting |
 | Sonia Nair | s39478014 | Database, UI, Unit Testing, MQTT |
 
-> ⚠️ Replace names and student IDs above with actual details before submission.
+
 
 ---
 
